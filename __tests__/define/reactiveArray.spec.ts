@@ -181,44 +181,44 @@ describe('reactivity/reactive/Array', () => {
     })
   })
 
-  describe('Array subclasses', () => {
-    class SubArray<T> extends Array<T> {
-      lastPushed: undefined | T
-      lastSearched: undefined | T
+  // describe('Array subclasses', () => {
+  //   class SubArray<T> extends Array<T> {
+  //     lastPushed: undefined | T
+  //     lastSearched: undefined | T
 
-      push(item: T) {
-        this.lastPushed = item
-        return super.push(item)
-      }
+  //     push(item: T) {
+  //       this.lastPushed = item
+  //       return super.push(item)
+  //     }
 
-      indexOf(searchElement: T, fromIndex?: number | undefined): number {
-        this.lastSearched = searchElement
-        return super.indexOf(searchElement, fromIndex)
-      }
-    }
+  //     indexOf(searchElement: T, fromIndex?: number | undefined): number {
+  //       this.lastSearched = searchElement
+  //       return super.indexOf(searchElement, fromIndex)
+  //     }
+  //   }
 
-    test('calls correct mutation method on Array subclass', () => {
-      const subArray = new SubArray(4, 5, 6)
-      const observed = reactive(subArray)
+  //   test('calls correct mutation method on Array subclass', () => {
+  //     const subArray = new SubArray(4, 5, 6)
+  //     const observed = reactive(subArray)
 
-      subArray.push(7)
-      expect(subArray.lastPushed).toBe(7)
-      observed.push(9)
-      expect(observed.lastPushed).toBe(9)
-    })
+  //     subArray.push(7)
+  //     expect(subArray.lastPushed).toBe(7)
+  //     observed.push(9)
+  //     expect(observed.lastPushed).toBe(9)
+  //   })
 
-    test('calls correct identity-sensitive method on Array subclass', () => {
-      const subArray = new SubArray(4, 5, 6)
-      const observed = reactive(subArray)
-      let index
+  //   test('calls correct identity-sensitive method on Array subclass', () => {
+  //     const subArray = new SubArray(4, 5, 6)
+  //     const observed = reactive(subArray)
+  //     let index
 
-      index = subArray.indexOf(4)
-      expect(index).toBe(0)
-      expect(subArray.lastSearched).toBe(4)
+  //     index = subArray.indexOf(4)
+  //     expect(index).toBe(0)
+  //     expect(subArray.lastSearched).toBe(4)
 
-      index = observed.indexOf(6)
-      expect(index).toBe(2)
-      expect(observed.lastSearched).toBe(6)
-    })
-  })
+  //     index = observed.indexOf(6)
+  //     expect(index).toBe(2)
+  //     expect(observed.lastSearched).toBe(6)
+  //   })
+  // })
 })

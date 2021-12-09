@@ -77,6 +77,24 @@ function createReadonlyArrayInstrumentations() {
   return instrumentations
 }
 
+let shouldTrigger = true
+const triggerStack: boolean[] = []
+
+export function pauseTriggering() {
+  triggerStack.push(shouldTrigger)
+  shouldTrigger = false
+}
+
+export function enableTriggering() {
+  triggerStack.push(shouldTrigger)
+  shouldTrigger = true
+}
+
+export function resetTriggering() {
+  const last = triggerStack.pop()
+  shouldTrigger = last === undefined ? true : last
+}
+
 function createArrayInstrumentations() {
   const instrumentations: Record<string, Function> = {}
   ;(['includes', 'indexOf', 'lastIndexOf'] as const).forEach((key) => {
@@ -103,7 +121,9 @@ function createArrayInstrumentations() {
       const origin = toRaw(this) as any
       const oldLen = origin.length
       const changeArray = triggerArrayMethods(args, key, origin)
+      enableTriggering()
       const res = origin[key](...args)
+      resetTriggering()
       const newLen = origin.length
       // 新增了元素
       if (oldLen !== newLen) {
@@ -236,15 +256,20 @@ export function defProxy(
   shallow: boolean
 ): any {
   let proxy = Object.create(value)
-  if (isArray(value)) {
+  const targetIsArray = isArray(value)
+  if (targetIsArray) {
     proxy = []
+  }
+  walk(proxy, value, isReadonly, shallow)
+
+  if (targetIsArray) {
+    // 覆盖方法属性
     copyAugment(
       proxy,
       isReadonly ? readonlyArrayInstrumentations : arrayInstrumentations
     )
     defineReactive(proxy, value, 'length', isReadonly, shallow)
   }
-  walk(proxy, value, isReadonly, shallow)
 
   if (isRef(value)) {
     defineReactive(proxy, value, 'value', isReadonly, shallow)
@@ -400,9 +425,7 @@ const builtInSymbols = new Set(
 
 export function has(target: any, key: any): any {
   if (!isObject(target)) {
-    if (__DEV__) {
-      console.warn(`target cannot be made reactive: ${String(target)}`)
-    }
+    warnCannotMethods('has')
     return
   }
   const res = key in target
@@ -444,7 +467,11 @@ export function ownKeys<T>(target: T): T {
   return target
 }
 
-export function get(target: any, key: any): any {
+export function get(target: any, key: string | number): any {
+  if (!isObject(target)) {
+    warnCannotMethods('get')
+    return
+  }
   if (!isReactiveDefine(target)) {
     return target[key]
   }
@@ -475,11 +502,17 @@ export function get(target: any, key: any): any {
   return res
 }
 
-export function set(target: any, key: any, val: any): void {
+function warnCannotMethods(method: string) {
+  if (__DEV__) {
+    console.warn(
+      `target is not an object type, ${method} function call cannot be made`
+    )
+  }
+}
+
+export function set(target: any, key: string | number, val: any): void {
   if (!isObject(target)) {
-    if (__DEV__) {
-      console.warn(`target cannot be made reactive: ${String(target)}`)
-    }
+    warnCannotMethods('set')
     return
   }
 
@@ -510,6 +543,7 @@ export function set(target: any, key: any, val: any): void {
   if (!isReactive(target)) {
     const proxy = findProxyMap(target)
     // 原属性的新增，不需要通知
+    // 但是如果在数组重写的方法中需要通知
     target[key] = val
     if (proxy) {
       defineReactiveByProxy(proxy, target, key)
@@ -538,11 +572,9 @@ export function set(target: any, key: any, val: any): void {
   }
 }
 
-export function del(target: any, key: any): void {
+export function del(target: any, key: string | number): void {
   if (!isObject(target)) {
-    if (__DEV__) {
-      console.warn(`target cannot be made reactive: ${String(target)}`)
-    }
+    warnCannotMethods('del')
     return
   }
   if (isReactive(target) && !isReactiveDefine(target)) {
@@ -551,10 +583,10 @@ export function del(target: any, key: any): void {
   }
 
   if (isArray(target) && isIntegerKey(key)) {
-    target.splice(key, 1)
+    target.splice(key as number, 1)
     return
   }
-  if (!hasOwn(target, key)) {
+  if (!hasOwn(target, key as string)) {
     return
   }
 
@@ -569,6 +601,7 @@ export function del(target: any, key: any): void {
   if (!isReactive(target)) {
     const proxy = findProxyMap(target)
     // 原属性的删除，不需要通知
+    // 但是如果在数组重写的方法中需要通知
     delete target[key]
     if (proxy) {
       delete proxy[key]
@@ -589,10 +622,15 @@ export function del(target: any, key: any): void {
   )
 }
 
-export function defProxyRef(target: any) {
-  if (!isPlainObject) {
+export function defProxyRef<T>(target: T): T {
+  // 不支持数组
+  if (!isPlainObject(target)) {
     if (__DEV__) {
-      console.warn(`target cannot be made reactive: ${String(target)}`)
+      console.warn(
+        `target cannot be made reactive: ${String(target)}${
+          isArray(target) ? '，Does not support arrays' : ''
+        }`
+      )
     }
     return target
   }
