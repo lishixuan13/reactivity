@@ -8,8 +8,8 @@ import {
 } from '@vue/shared'
 import {
   toRaw,
-  isReactive,
   isReadonly,
+  isProxy,
   Target,
   reactive,
   readonly,
@@ -32,7 +32,12 @@ import { isRef, unref } from './ref'
 /**
  * Define a property.
  */
-function def(obj: any, key: PropertyKey, val: any, enumerable?: boolean): void {
+function def(
+  obj: object,
+  key: PropertyKey,
+  val: any,
+  enumerable?: boolean
+): void {
   Object.defineProperty(obj, key, {
     value: val,
     enumerable: !!enumerable,
@@ -42,7 +47,7 @@ function def(obj: any, key: PropertyKey, val: any, enumerable?: boolean): void {
 }
 
 function defGet(
-  obj: any,
+  obj: object,
   key: PropertyKey,
   get: () => any,
   enumerable?: boolean
@@ -251,10 +256,10 @@ function copyAugment(target: any, src: any): void {
 }
 
 export function defProxy(
-  value: any,
+  value: object,
   isReadonly: boolean,
   shallow: boolean
-): any {
+): object {
   let proxy = Object.create(value)
   const targetIsArray = isArray(value)
   if (targetIsArray) {
@@ -268,7 +273,6 @@ export function defProxy(
       proxy,
       isReadonly ? readonlyArrayInstrumentations : arrayInstrumentations
     )
-    defineReactive(proxy, value, 'length', isReadonly, shallow)
   }
 
   if (isRef(value)) {
@@ -297,8 +301,8 @@ export function defProxy(
 }
 
 function walk(
-  proxy: any,
-  target: any,
+  proxy: object,
+  target: object,
   isReadonly: boolean,
   shallow: boolean
 ): void {
@@ -312,7 +316,7 @@ function walk(
  * Define a reactive property on an Object.
  */
 function defineReactive(
-  proxy: any,
+  proxy: object,
   target: any,
   key: PropertyKey,
   isReadonly = false,
@@ -518,7 +522,7 @@ export function set(target: any, key: string | number, val: any): void {
 
   const isDefine = isReactiveDefine(target)
 
-  if (isReactive(target) && !isDefine) {
+  if (isProxy(target) && !isDefine) {
     target[key] = val
     return val
   }
@@ -540,7 +544,7 @@ export function set(target: any, key: string | number, val: any): void {
     return
   }
 
-  if (!isReactive(target)) {
+  if (!isProxy(target)) {
     const proxy = findProxyMap(target)
     // 原属性的新增，不需要通知
     // 但是如果在数组重写的方法中需要通知
@@ -577,7 +581,7 @@ export function del(target: any, key: string | number): void {
     warnCannotMethods('del')
     return
   }
-  if (isReactive(target) && !isReactiveDefine(target)) {
+  if (isProxy(target) && !isReactiveDefine(target)) {
     delete target[key]
     return
   }
@@ -598,7 +602,7 @@ export function del(target: any, key: string | number): void {
     return
   }
 
-  if (!isReactive(target)) {
+  if (!isProxy(target)) {
     const proxy = findProxyMap(target)
     // 原属性的删除，不需要通知
     // 但是如果在数组重写的方法中需要通知
